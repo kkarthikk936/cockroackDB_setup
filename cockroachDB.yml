@@ -1,0 +1,58 @@
+
+---
+- name: install and configure cockroachDB
+  hosts: cockroachDB
+  tasks:
+    - name: download cockroachdb zip file
+      get_url:
+        url: https://binaries.cockroachdb.com/cockroach-v22.1.0.linux-amd64.tgz
+        dest: ~/
+    - name: Unarchive a download cockroachdb zip file
+      unarchive:
+        src: /root/cockroach-v22.1.0.linux-amd64.tgz
+        dest: ~/
+    - name: Copy binary to /usr/local/bin
+      copy:
+        src: /root/cockroach-v22.1.0.linux-amd64/cockroach
+        dest: /usr/local/bin/
+        mode: '0755'
+        remote_src: yes
+    - name: Create the directory where the external libraries will be
+      file:
+        path: /usr/local/lib/cockroach
+        state: directory
+    - name: Copy the external libraries to the directory
+      copy:
+        remote_src: yes
+        src: /root/cockroach-v22.1.0.linux-amd64/lib/
+        dest: /usr/local/lib/cockroach/
+    - name: Get internal IP
+      shell: ifconfig ens160 | grep  -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}"  | head -n1 > /root/internalip.txt
+    - name: Get all internal IPs
+      command: cat /root/internalip.txt
+      register: internalips
+      changed_when: false
+    - name: create cockroachdb service file with content
+      copy:
+        dest: /etc/systemd/system/cockroachdb.service
+        content: |
+          [Unit]
+          Description=Cockroach Database cluster node
+          Requires=network.target
+          [Service]
+          Type=notify
+          WorkingDirectory=/var/lib/cockroach
+          ExecStart=/usr/local/bin/cockroach start --insecure --advertise-addr {{ internalips.stdout }} --join=<node1 ip>,<node2 ip>,<node3 ip> --cache=.25 --max-sql-memory=.25
+          TimeoutStopSec=60
+          Restart=always
+          RestartSec=10
+          StandardOutput=syslog
+          StandardError=syslog
+          SyslogIdentifier=cockroach
+          User=cockroach
+          [Install]
+          WantedBy=default.target
+    - name: start cockroachdb service
+      service:
+        name: cockroachdb
+        state: started
