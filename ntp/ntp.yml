@@ -1,0 +1,17 @@
+---
+- name: playbook for installing ntp server
+  hosts: cockroachDB
+  tasks:
+    - name: Install ntp
+      apt:
+        name: ntp 
+        state: present
+    - name: copy ntp config file
+      copy:  
+        src: ntp.conf
+        dest: /etc/ntp.conf
+    - name: Restart ntp service
+      ansible.builtin.service:
+        name: ntp 
+        state: restarted
+        enabled: true 
